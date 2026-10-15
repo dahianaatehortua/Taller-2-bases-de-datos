@@ -7,6 +7,12 @@ from sqlalchemy import (
     Integer, String, Date
 )
 
+
+# Modifica aquí la cantidad de registros que deseas insertar:
+TOTAL_REGISTROS = 100_000   # <-- ¡CAMBIA ESTE NÚMERO AQUÍ! (ej: 500, 1000, 100000)
+TAMAÑO_LOTE = 5_000         # Tamaño de cada bloque de inserción masiva
+
+
 # 1. Cargar variables de entorno
 load_dotenv()
 
@@ -44,15 +50,23 @@ def create_table_if_not_exists(engine, metadata):
     print(f"-> Tabla '{NOMBRE_TABLA}' lista en la base de datos.")
     return tabla_personas
 
-def populate_database(engine, tabla_personas, total_records=100_000, batch_size=5_000):
-    """Inserta 100.000 registros en lotes de 5.000."""
+def populate_database(engine, tabla_personas, total_records, batch_size=5_000):
+    """Limpia registros previos e inserta exactamente la cantidad configurada."""
     
     fake = Faker("es_CO")
     
+    # Ajusta el lote si la cantidad configurada es menor a 5.000
+    batch_size = min(batch_size, total_records) if total_records > 0 else 1
     total_batches = math.ceil(total_records / batch_size)
-    print(f"-> Iniciando inserción de {total_records:,} registros...")
 
     with engine.begin() as conn:
+        # 1. Limpieza automática previa para no acumular datos viejos
+        print(f"-> Limpiando registros anteriores en '{tabla_personas.name}'...")
+        conn.execute(tabla_personas.delete())
+        
+        # 2. Inserción de los registros nuevos
+        print(f"-> Iniciando inserción de {total_records:,} registros...")
+
         for i in range(total_batches):
             current_batch_size = min(batch_size, total_records - (i * batch_size))
             lote = []
@@ -72,13 +86,15 @@ def populate_database(engine, tabla_personas, total_records=100_000, batch_size=
             conn.execute(tabla_personas.insert(), lote)
             print(f"   Lote {i + 1}/{total_batches} insertado exitosamente.")
 
-    print(f"-> ¡Éxito! Se insertaron los {total_records:,} registros.")
+    print(f"-> ¡Éxito! Se insertaron exactamente los {total_records:,} registros.")
 
 def main():
     engine = get_engine()
     metadata = MetaData()
     tabla = create_table_if_not_exists(engine, metadata)
-    populate_database(engine, tabla, total_records=100_000, batch_size=5_000)
+    
+    # Usa directamente la variable configurada arriba del archivo
+    populate_database(engine, tabla, total_records=TOTAL_REGISTROS, batch_size=TAMAÑO_LOTE)
 
 if __name__ == "__main__":
     main()
